@@ -76,6 +76,3 @@ The frontend will run at `http://localhost:3000/`.
 2. Run the Next.js frontend
 3. Open `http://localhost:3000` in your browser
 
-## License
-
-This repository is ready to upload to GitHub. Add a license file if you want to publish this project under a specific license.
