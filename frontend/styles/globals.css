@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-netflix-red: #e50914;
+  --color-netflix-red-hover: #f40612;
+  --color-netflix-black: #141414;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-netflix-black);
+    background-image: radial-gradient(circle at top center, rgba(255,255,255,0.05), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(229,9,20,0.08), transparent 20%);
+    color: white;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, Arial, Helvetica, sans-serif;
+  }
+
+  iframe.video-player {
+    background-color: transparent;
+  }
+
+  video::cue {
+    background: transparent;
+    color: white;
+    text-shadow: 0 0 0.25rem rgba(0, 0, 0, 0.85);
+    font-size: 1.1rem;
+    line-height: 1.4;
+    padding: 0.1rem 0.25rem;
+  }
+
+  video::cue-region {
+    background: transparent;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
