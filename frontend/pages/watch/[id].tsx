@@ -4,6 +4,8 @@ import Head from 'next/head';
 import { Heart, Plus, ListVideo, Star, Maximize, Minimize, SkipForward } from 'lucide-react';
 import api, { tmdbImage } from '@/services/api';
 
+type ServerKey = 'vidlink' | 'vidfast';
+
 export default function Watch() {
   const router = useRouter();
   const { id, type } = router.query;
@@ -20,6 +22,7 @@ export default function Watch() {
   const [selectedEpisode, setSelectedEpisode] = useState<number>(1);
   const [fetchingEpisodes, setFetchingEpisodes] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
+  const [selectedServer, setSelectedServer] = useState<ServerKey>('vidlink');
   const activeEpisodeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export default function Watch() {
 
   const fetchMovieDetails = async () => {
     try {
-      let data;
+      let data: any;
       if (type === 'anime') {
         const { getAnimeDetails } = await import('@/services/animeApi');
         data = await getAnimeDetails(id as string);
@@ -252,6 +255,7 @@ export default function Watch() {
 
   // Determine iframe source
   let iframeSrc = '';
+  const tmdbId = String(movie.id || id);
   const vidlinkParams = {
     player: 'jw',
     title: 'false',
@@ -261,8 +265,27 @@ export default function Watch() {
     secondaryColor: '000000',
     iconColor: 'ffffff',
   };
+  const vidfastParams = {
+    title: 'false',
+    poster: 'false',
+    autoPlay: 'false',
+    theme: 'e50914',
+    fullscreenButton: 'true',
+    chromecast: 'false',
+    nextButton: type === 'tv' || type === 'anime' ? 'true' : 'false',
+    autoNext: 'false',
+    hideServerControls: 'false',
+  };
+  const isVidfastAvailable = type !== 'anime' || Boolean(movie.original_mal_id);
+  const activeServer = selectedServer === 'vidfast' && !isVidfastAvailable ? 'vidlink' : selectedServer;
 
-  if (type === 'anime') {
+  if (activeServer === 'vidfast') {
+    if (type === 'tv' || type === 'anime') {
+      iframeSrc = buildPlayerUrl(`https://vidfast.pro/tv/${tmdbId}/${selectedSeason}/${selectedEpisode}`, vidfastParams);
+    } else {
+      iframeSrc = buildPlayerUrl(`https://vidfast.pro/movie/${tmdbId}`, vidfastParams);
+    }
+  } else if (type === 'anime') {
     const animeId = movie.original_mal_id || movie.id || id;
     iframeSrc = buildPlayerUrl(`https://vidlink.pro/anime/${animeId}/${selectedEpisode}`, vidlinkParams);
   } else if (type === 'tv') {
@@ -281,6 +304,7 @@ export default function Watch() {
       <div className={`flex-grow relative bg-black shadow-2xl transition-all duration-500 z-40
         ${isTheaterMode ? 'w-full h-[50vh] md:h-[75vh] lg:h-[85vh]' : 'lg:w-3/4 h-[40vh] md:h-[60vh] lg:h-[calc(100vh-4rem)]'}`}>
         <iframe 
+          key={iframeSrc}
           src={iframeSrc} 
           className="video-player w-full h-full absolute inset-0 border-0"
           allowFullScreen
@@ -300,6 +324,30 @@ export default function Watch() {
       <div className={`p-6 overflow-y-auto transition-all duration-500 bg-transparent relative no-scrollbar
         ${isTheaterMode ? 'w-full h-auto max-w-6xl mx-auto' : 'lg:w-1/4 h-auto lg:h-[calc(100vh-4rem)] border-t lg:border-t-0 lg:border-l border-white/10'}`}>
         <h1 className="text-2xl md:text-3xl font-bold mb-2 tracking-wide drop-shadow-md">{movie.title || movie.name}</h1>
+
+        <div className="mb-5 grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+          {[
+            { key: 'vidlink' as ServerKey, label: 'VidLink', title: 'Server 1 - VidLink' },
+            { key: 'vidfast' as ServerKey, label: 'VidFast', title: 'Server 2 - VidFast' },
+          ].map((server) => {
+            const disabled = server.key === 'vidfast' && !isVidfastAvailable;
+            return (
+              <button
+                key={server.key}
+                onClick={() => !disabled && setSelectedServer(server.key)}
+                disabled={disabled}
+                className={`min-h-10 rounded-md px-3 text-sm font-bold transition-all ${
+                  activeServer === server.key
+                    ? 'bg-red-600 text-white shadow-[0_0_18px_rgba(229,9,20,0.35)]'
+                    : 'bg-transparent text-gray-300 hover:bg-white/10'
+                } ${disabled ? 'cursor-not-allowed opacity-40 hover:bg-transparent' : ''}`}
+                title={disabled ? 'VidFast needs a TMDB TV mapping for this anime' : server.title}
+              >
+                {server.label}
+              </button>
+            );
+          })}
+        </div>
 
         <div className="flex items-center gap-4 text-gray-300 text-sm mb-6 font-medium">
           <span>{movie.release_date ? movie.release_date.split('-')[0] : movie.first_air_date?.split('-')[0]}</span>
