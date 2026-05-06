@@ -1,7 +1,7 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
-import { Heart, Plus, ListVideo, Star } from 'lucide-react';
+import { Heart, Plus, ListVideo, Star, Maximize, Minimize, SkipForward } from 'lucide-react';
 import api, { tmdbImage } from '@/services/api';
 
 export default function Watch() {
@@ -19,8 +19,8 @@ export default function Watch() {
   const [selectedSeason, setSelectedSeason] = useState<number>(1);
   const [selectedEpisode, setSelectedEpisode] = useState<number>(1);
   const [fetchingEpisodes, setFetchingEpisodes] = useState(false);
-
-  const [anilistId, setAnilistId] = useState<string | null>(null);
+  const [isTheaterMode, setIsTheaterMode] = useState(false);
+  const activeEpisodeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -40,6 +40,25 @@ export default function Watch() {
     }
   }, [selectedSeason, selectedEpisode, movie]);
 
+  useEffect(() => {
+    if (activeEpisodeRef.current && !fetchingEpisodes) {
+      activeEpisodeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [selectedEpisode, fetchingEpisodes]);
+
+  const handleNextEpisode = () => {
+    const currentIndex = episodes.findIndex((ep) => ep.episode_number === selectedEpisode);
+    if (currentIndex !== -1 && currentIndex < episodes.length - 1) {
+      setSelectedEpisode(episodes[currentIndex + 1].episode_number);
+    } else if (seasons.length > 0) {
+      const currentSeasonIndex = seasons.findIndex((s) => s.season_number === selectedSeason);
+      if (currentSeasonIndex !== -1 && currentSeasonIndex < seasons.length - 1) {
+        setSelectedSeason(seasons[currentSeasonIndex + 1].season_number);
+        setSelectedEpisode(1);
+      }
+    }
+  };
+
   const fetchMovieDetails = async () => {
     try {
       let data;
@@ -47,22 +66,6 @@ export default function Watch() {
         const { getAnimeDetails } = await import('@/services/animeApi');
         data = await getAnimeDetails(id as string);
         setMovie(data);
-        
-        // Map MAL ID to Anilist ID for the video player
-        try {
-          const aniRes = await fetch('https://graphql.anilist.co/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: 'query($idMal: Int) { Media(idMal: $idMal, type: ANIME) { id } }',
-              variables: { idMal: parseInt(id as string) }
-            })
-          });
-          const aniData = await aniRes.json();
-          if (aniData?.data?.Media?.id) {
-            setAnilistId(aniData.data.Media.id.toString());
-          }
-        } catch (e) { console.error("Anilist mapping failed", e); }
         
         // Attempt to find TMDB ID by searching title
         try {
@@ -260,15 +263,8 @@ export default function Watch() {
   };
 
   if (type === 'anime') {
-    if (movie.original_mal_id) {
-      // Successfully mapped to TMDB, treat perfectly as TV show!
-      iframeSrc = buildPlayerUrl(`https://vidlink.pro/tv/${movie.id}/${selectedSeason}/${selectedEpisode}`, vidlinkParams);
-    } else if (anilistId) {
-      // Fallback to autoembed if VidLink mapping isn't available
-      iframeSrc = `https://autoembed.to/anime/anilist/${anilistId}?ep=${selectedEpisode}`;
-    } else {
-      iframeSrc = `https://autoembed.to/anime/mal/${id}?ep=${selectedEpisode}`;
-    }
+    const animeId = movie.original_mal_id || movie.id || id;
+    iframeSrc = buildPlayerUrl(`https://vidlink.pro/anime/${animeId}/${selectedEpisode}`, vidlinkParams);
   } else if (type === 'tv') {
     iframeSrc = buildPlayerUrl(`https://vidlink.pro/tv/${id}/${selectedSeason}/${selectedEpisode}`, vidlinkParams);
   } else {
@@ -276,13 +272,14 @@ export default function Watch() {
   }
 
   return (
-    <div className="min-h-screen bg-black pt-20 flex flex-col lg:flex-row">
+    <div className={`min-h-screen bg-black pt-16 flex flex-col ${isTheaterMode ? 'lg:flex-col' : 'lg:flex-row'}`}>
       <Head>
         <title>{movie.title || movie.name} - StreamNest</title>
       </Head>
 
       {/* Main Video Player */}
-      <div className="flex-grow lg:w-3/4 h-[40vh] md:h-[60vh] lg:h-[calc(100vh-5rem)] bg-black relative shadow-2xl">
+      <div className={`flex-grow relative bg-black shadow-2xl transition-all duration-500 z-40
+        ${isTheaterMode ? 'w-full h-[50vh] md:h-[75vh] lg:h-[85vh]' : 'lg:w-3/4 h-[40vh] md:h-[60vh] lg:h-[calc(100vh-4rem)]'}`}>
         <iframe 
           src={iframeSrc} 
           className="video-player w-full h-full absolute inset-0 border-0"
@@ -290,12 +287,20 @@ export default function Watch() {
           allow="autoplay; fullscreen; picture-in-picture"
           referrerPolicy="origin"
         ></iframe>
+        <button
+          onClick={() => setIsTheaterMode(!isTheaterMode)}
+          className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-md transition-all border border-white/20 hidden md:block opacity-30 hover:opacity-100"
+          title={isTheaterMode ? "Exit Theater Mode" : "Theater Mode"}
+        >
+          {isTheaterMode ? <Minimize size={20} /> : <Maximize size={20} />}
+        </button>
       </div>
 
       {/* Sidebar Info */}
-      <div className="lg:w-1/4 p-6 overflow-y-auto h-auto lg:h-[calc(100vh-5rem)] bg-transparent border-l border-white/10 no-scrollbar relative">
+      <div className={`p-6 overflow-y-auto transition-all duration-500 bg-transparent relative no-scrollbar
+        ${isTheaterMode ? 'w-full h-auto max-w-6xl mx-auto' : 'lg:w-1/4 h-auto lg:h-[calc(100vh-4rem)] border-t lg:border-t-0 lg:border-l border-white/10'}`}>
         <h1 className="text-2xl md:text-3xl font-bold mb-2 tracking-wide drop-shadow-md">{movie.title || movie.name}</h1>
-        
+
         <div className="flex items-center gap-4 text-gray-300 text-sm mb-6 font-medium">
           <span>{movie.release_date ? movie.release_date.split('-')[0] : movie.first_air_date?.split('-')[0]}</span>
           {movie.vote_average > 0 && (
@@ -344,11 +349,22 @@ export default function Watch() {
           <div className="mt-6 border-t border-white/10 pt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold flex items-center gap-2"><ListVideo size={20} /> Episodes</h2>
-              {(type === 'tv' || type === 'anime') && seasons.length > 0 && (
-                <select 
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleNextEpisode}
+                  className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-md transition-all flex items-center gap-1 text-xs font-bold"
+                  title="Next Episode"
+                >
+                  <SkipForward size={16} /> Next
+                </button>
+                {(type === 'tv' || type === 'anime') && seasons.length > 0 && (
+                  <select 
                   className="bg-black/50 text-white border border-gray-600 text-sm rounded-md focus:ring-red-500 focus:border-red-500 block p-2 backdrop-blur-md outline-none"
                 value={selectedSeason}
-                onChange={(e) => setSelectedSeason(Number(e.target.value))}
+                onChange={(e) => {
+                  setSelectedSeason(Number(e.target.value));
+                  setSelectedEpisode(1);
+                }}
               >
                   {seasons.map((s) => (
                     <option key={s.id} value={s.season_number}>
@@ -356,7 +372,8 @@ export default function Watch() {
                     </option>
                   ))}
                 </select>
-              )}
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -374,6 +391,7 @@ export default function Watch() {
                 episodes.map((ep) => (
                   <div 
                     key={ep.id} 
+                    ref={selectedEpisode === ep.episode_number ? activeEpisodeRef : null}
                     onClick={() => setSelectedEpisode(ep.episode_number)}
                     className={`flex gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 group
                       ${selectedEpisode === ep.episode_number 

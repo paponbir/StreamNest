@@ -57,7 +57,7 @@ export default function VideoRow({ title, category }: VideoRowProps) {
         
         <div 
           ref={rowRef}
-          className="flex items-center space-x-4 overflow-x-scroll no-scrollbar px-6 md:px-12 pb-8 pt-4"
+          className="flex items-center space-x-4 overflow-x-scroll no-scrollbar px-6 md:px-12 pb-8 pt-4 snap-x snap-mandatory scroll-smooth"
         >
           {loading
             ? Array.from({ length: 6 }).map((_, index) => (
